@@ -1,0 +1,3583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Campground availability 2026-06-19 → 2026-06-22</title>
+<style>
+  :root {
+    --border: #d8d8d8;
+    --header-bg: #f4f4f4;
+    --row-hover: #fff8d6;
+    --avail: #1f7a3a;
+    --muted: #888;
+    --month-divider: #888;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 1rem;
+    color: #222;
+  }
+  .page-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    padding: 0.5rem 0;
+    margin: -0.5rem 0 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .share { color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0; display: flex; align-items: center; gap: 0.4rem; }
+  .share a { color: #1f55aa; text-decoration: none; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  .share a:hover { text-decoration: underline; }
+  .copy-btn {
+    border: 1px solid var(--border);
+    background: white;
+    color: #555;
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    font: inherit;
+  }
+  .copy-btn:hover { background: var(--row-hover); }
+  .copy-btn svg { width: 14px; height: 14px; display: block; }
+  .copy-btn.copied { color: var(--avail); border-color: var(--avail); }
+
+  .cg-block { margin-bottom: 1.2rem; }
+  table {
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    width: max-content;
+    margin-bottom: 0.5rem;
+  }
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 4px 8px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  th { background: var(--header-bg); }
+  /* Fixed-width campground column so the vertical divider after it lines up
+     across stacked monthly tables (different chunks have different numbers
+     of date columns, so a min-width column stretches inconsistently). */
+  th.cg, td.cg {
+    text-align: left;
+    width: 280px;
+    background: white;
+  }
+  th.cg { background: var(--header-bg); }
+
+  th.month-start, td.month-start { border-left: 2px solid var(--month-divider); }
+  th .month { display: block; font-size: 0.7rem; color: var(--muted); }
+
+  /* Weekend (Sat/Sun) date columns: subtle yellow shade through every row. */
+  th.weekend, td.weekend { background-color: #fff7d6; }
+
+  tr.summary { cursor: pointer; }
+  tr.summary:hover td { background: var(--row-hover); }
+  tr.summary td.cg { font-weight: 700; text-transform: uppercase; }
+  tr.summary.no-avail { cursor: default; color: var(--muted); }
+  tr.summary.no-avail:hover td { background: white; }
+
+  .caret { display: inline-block; width: 1em; }
+
+  tr.site { display: none; }
+  tr.site.open { display: table-row; }
+  tr.site td.cg { padding-left: 2rem; font-weight: normal; text-transform: none; }
+
+  .avail a {
+    color: var(--avail);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  .avail a:hover { text-decoration: underline; }
+  .avail.no-link { color: var(--avail); font-weight: 700; }
+
+  /* Favourite-site cells: circle the checkmark */
+  .avail.fav a, .avail.fav .no-link {
+    display: inline-block;
+    border: 1.5px solid var(--avail);
+    border-radius: 50%;
+    width: 1.4em;
+    height: 1.4em;
+    line-height: 1.25em;
+    text-align: center;
+  }
+  tr.site.fav td.cg { font-weight: 600; }
+
+  /* Favourites-only toggles. Site-level: hide non-favourite site rows in
+     campgrounds that have favourites listed (.has-favs is set when col G is
+     non-blank). Campground-level: hide whole cg-blocks that aren't marked
+     favourite (.fav-cg, set from col H). */
+  .fav-toggle { display: inline-block; margin-left: 1rem; cursor: pointer; }
+  .fav-toggle input { vertical-align: middle; margin-right: 0.25em; }
+  body.favs-only .cg-block.has-favs tr.site:not(.fav) { display: none !important; }
+  body.fav-cg-only .cg-block:not(.fav-cg) { display: none !important; }
+
+  /* Per-campground chip filters. Hidden if the adapter exposes no tags. */
+  .filters {
+    margin: 0 0 0.4rem;
+    font-size: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.3rem 0.6rem;
+  }
+  .filters .fg-label {
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    margin-right: 0.1rem;
+  }
+  .filters .chip {
+    border: 1px solid var(--border);
+    background: white;
+    color: #333;
+    border-radius: 999px;
+    padding: 1px 8px;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1.4;
+  }
+  .filters .chip:hover { background: var(--row-hover); }
+  .filters .chip.active {
+    background: var(--avail);
+    border-color: var(--avail);
+    color: white;
+  }
+  .filters .clear {
+    border: none;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+    font: inherit;
+    padding: 0;
+    margin-left: 0.4rem;
+  }
+  .filters .clear[hidden] { display: none; }
+  tr.site.filtered-out { display: none !important; }
+
+  .status-error { color: #b00020; }
+  .status-noadapter { color: var(--muted); font-style: italic; }
+
+  @media print {
+    .cg-block { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+    .caret { display: none; }
+    tr.summary { cursor: default; }
+    .fav-toggle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Campground availability — 2026-06-19 → 2026-06-22</h1>
+  <div class="meta">
+    4 campgrounds · 3 nights · click a row to expand
+    <label class="fav-toggle">
+      <input type="checkbox" id="fav-cg-only-toggle">
+      Only show favourite campgrounds
+    </label>
+    <label class="fav-toggle">
+      <input type="checkbox" id="favs-only-toggle">
+      Only show favourite sites
+    </label>
+  </div>
+  
+  <div class="share">
+    <span>Shareable URL:</span>
+    <a href="https://alexglassey.github.io/campground_finder/reports/campground_report_1781491375_PA1wBeb2nE2bhTZk.html" target="_blank" rel="noopener">https://alexglassey.github.io/campground_finder/reports/campground_report_1781491375_PA1wBeb2nE2bhTZk.html</a>
+    <button type="button" class="copy-btn" id="copy-share-btn" data-url="https://alexglassey.github.io/campground_finder/reports/campground_report_1781491375_PA1wBeb2nE2bhTZk.html" title="Copy URL to clipboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    </button>
+  </div>
+  
+</div>
+
+
+  
+  <div class="cg-block has-favs fav-cg">
+  
+    
+    
+      
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="cg">CAMPGROUND/SITE</th>
+            
+              <th class="month-start ">
+                <span class="month">Jun</span>
+                19
+              </th>
+            
+              <th class="weekend">
+                
+                20
+              </th>
+            
+              <th class="weekend">
+                
+                21
+              </th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="summary" data-target="cg-1-chunk-1">
+            <td class="cg"><span class="caret">▶</span> Loon Lake (Mosaic, Port Alberni)</td>
+            <td colspan="3" style="text-align:left;">
+              
+                <span class="site-count">10 sites available</span>
+                
+              
+            </td>
+          </tr>
+          
+            <tr class="site fav" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="b82c97f1-a0d7-413c-82f0-9b572e5eb402" data-tags="">
+              <td class="cg">LL07P</td>
+              
+                
+                <td class="month-start ">
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="4fe91fce-bfac-4955-ba6a-641b48e832fb" data-tags="">
+              <td class="cg">LL10</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="4f23b203-0c3a-4e6e-a0ab-ef91a88cb3fa" data-tags="">
+              <td class="cg">LL12</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="a3059be2-3c96-4ec9-aa3c-dd06e709cf83" data-tags="">
+              <td class="cg">LL13</td>
+              
+                
+                <td class="month-start ">
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="c7c01eed-26a7-4533-ba61-c81829401ca0" data-tags="">
+              <td class="cg">LL16</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="4c49598c-25ec-4575-ac62-fb1c74567938" data-tags="">
+              <td class="cg">LL17</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="4188e38a-5afe-4bc6-aba6-11840b5dcb31" data-tags="">
+              <td class="cg">LL18</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="659c508f-d10f-4c31-bfb6-c0aaab47f0ac" data-tags="">
+              <td class="cg">LL19</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="dc3a99f1-4e13-4a9a-9520-f5f9bb71cf46" data-tags="">
+              <td class="cg">LL20</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-1-chunk-1" data-cg="cg-1" data-site-id="daa4a446-1cb4-46c0-b01e-c4e55d85b1d7" data-tags="">
+              <td class="cg">LL21</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://mosaiccampsites.com/bookcentralisland/loonlake" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+  </div>
+
+  
+  <div class="cg-block has-favs fav-cg">
+  
+    
+    
+      
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="cg">CAMPGROUND/SITE</th>
+            
+              <th class="month-start ">
+                <span class="month">Jun</span>
+                19
+              </th>
+            
+              <th class="weekend">
+                
+                20
+              </th>
+            
+              <th class="weekend">
+                
+                21
+              </th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="summary" data-target="cg-2-chunk-1">
+            <td class="cg"><span class="caret">▶</span> Macktush</td>
+            <td colspan="3" style="text-align:left;">
+              
+                <span class="site-count">50 sites available</span>
+                
+              
+            </td>
+          </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="eeb2d15e-7f1f-4118-84fa-f8ea6ea984f2" data-tags="">
+              <td class="cg">MT Group Site 01</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="0259b10b-71e5-480c-9241-55cee00115ee" data-tags="">
+              <td class="cg">MT30</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="36bbde48-eee3-422a-9422-a7616093c495" data-tags="">
+              <td class="cg">MT31</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="6a19f856-a0f5-4c82-a3b2-89e02718ab1e" data-tags="">
+              <td class="cg">MT32</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="0600f06a-eaf5-4515-832c-22cfdf2ae1c9" data-tags="">
+              <td class="cg">MT38</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="6fcf50f0-96bb-46ae-bf56-e50679b556aa" data-tags="">
+              <td class="cg">MT39</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="307305b6-ffd1-42bd-b2fd-f4f5c5ced4cf" data-tags="">
+              <td class="cg">MT40</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="1b5be7c6-7149-4313-9326-8b4846ddfa7b" data-tags="">
+              <td class="cg">MT41</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="6d8958c7-e1ec-4aa4-b123-4e23476cdd14" data-tags="">
+              <td class="cg">MT45P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="963ac90b-d440-4582-b1c7-f1fbfc376648" data-tags="">
+              <td class="cg">MT48P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="077566ab-6a89-4b08-8ddf-62dfdf81c244" data-tags="">
+              <td class="cg">MT49P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2085d323-39c6-4aba-b2fb-f4550161bf25" data-tags="">
+              <td class="cg">MT51P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="59bfdcec-30d2-48df-ba87-4f14bfe3db8e" data-tags="">
+              <td class="cg">MT53</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2897fd4d-9e77-4201-b6d0-19894af9538b" data-tags="">
+              <td class="cg">MT54P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="590b3e46-d545-4af1-9e6e-342617f63474" data-tags="">
+              <td class="cg">MT55</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="be25fe73-7ee6-454b-a78f-ea649bbc7b93" data-tags="">
+              <td class="cg">MT56P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="e21c40ae-34b5-4367-82ba-10d1053bca17" data-tags="">
+              <td class="cg">MT57P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="4bb0b479-bc6a-4cd7-9da9-40f29d7e4fab" data-tags="">
+              <td class="cg">MT58</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="4566bf18-213f-4255-8be8-9c62b466abef" data-tags="">
+              <td class="cg">MT60P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="148733a5-9a74-4cf8-9ce8-10302ae4c5d3" data-tags="">
+              <td class="cg">MT61</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="4e699d47-2e5f-4815-94d6-1042b84efd2b" data-tags="">
+              <td class="cg">MT62P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="9b2ca82c-dd78-4fbb-bb1c-5e8c68694cf1" data-tags="">
+              <td class="cg">MT63</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site fav" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="042a9f0b-3db4-4017-8715-891657f42543" data-tags="">
+              <td class="cg">MT64P</td>
+              
+                
+                <td class="month-start avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail fav">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="b7c81f18-233d-458c-8d96-73208cc55169" data-tags="">
+              <td class="cg">MT66</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="0c25f42b-5500-4191-9b81-2d8bdb894394" data-tags="">
+              <td class="cg">MT67P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="d2c34a91-9144-44ba-bc63-b2fe526f6925" data-tags="">
+              <td class="cg">MT68</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="23d6e6e6-5e04-4394-8f76-e864bc2964b6" data-tags="">
+              <td class="cg">MT69P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="f3715fee-2c26-4a85-8abe-79cee882df40" data-tags="">
+              <td class="cg">MT70P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="6693ea96-e1dc-459b-9a61-34778bf21809" data-tags="">
+              <td class="cg">MT71</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="ee3e2484-78de-446c-8225-a6c49c997fc9" data-tags="">
+              <td class="cg">MT72P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend ">
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2ba7b103-505e-4ec8-991a-8fafa186a147" data-tags="">
+              <td class="cg">MT73</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="ffb2196c-7821-4a4b-8068-574c0065b14d" data-tags="">
+              <td class="cg">MT74P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="497300a1-aae7-4e4a-87ee-4af0d9f558da" data-tags="">
+              <td class="cg">MT75</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="7450a0a5-bca0-419d-b0cc-f08cbd13e5a4" data-tags="">
+              <td class="cg">MT77P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend ">
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="b54e01c4-55c5-41cc-bd24-3996641c4316" data-tags="">
+              <td class="cg">MT78P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="b0c5d487-7b42-442e-b020-ae8519f612a6" data-tags="">
+              <td class="cg">MT79P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="bbc153c6-794e-40ad-91ac-b069d589425e" data-tags="">
+              <td class="cg">MT80</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="74db6d04-5156-47c6-99d1-1a9ffe533008" data-tags="">
+              <td class="cg">MT81P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="f9b789e7-22ff-449c-bbc4-8372127bab5d" data-tags="">
+              <td class="cg">MT82</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="ceff50be-b5f8-4ae8-b67e-335e6f0d4e92" data-tags="">
+              <td class="cg">MT83P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="da22cb4e-7665-4004-83cf-d39909a060b4" data-tags="">
+              <td class="cg">MT84P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="4dfdf101-c195-438e-a832-aef08bf16fbf" data-tags="">
+              <td class="cg">MT85</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2ccc8d12-e00a-4c19-8d2d-424793056aa0" data-tags="">
+              <td class="cg">MT86</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2bb78de0-dbac-41da-91cc-41c1073f1209" data-tags="">
+              <td class="cg">MT88</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2f73c655-43cd-46ee-acee-b41784cc7672" data-tags="">
+              <td class="cg">MT90</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="5642b1f5-d7e7-4cbf-ad8f-6d3e05cb9a64" data-tags="">
+              <td class="cg">MT91P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="2fd7ef5a-d8b8-479b-8b04-8c2bf41fb7bc" data-tags="">
+              <td class="cg">MT92</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="0d4e4d50-020b-4945-825f-a186a467dcbe" data-tags="">
+              <td class="cg">MT93P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="a78ffe89-b6f4-4965-a8cd-df36f6df3fa6" data-tags="">
+              <td class="cg">MT94P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-2-chunk-1" data-cg="cg-2" data-site-id="a799d25f-40d9-4f91-89a7-f966e568b146" data-tags="">
+              <td class="cg">MT95P</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.mosaiccampsites.com/book/centralisland/macktush" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+  </div>
+
+  
+  <div class="cg-block fav-cg">
+  
+    
+      <div class="filters" data-cg="cg-3">
+        
+          <span class="fg-label">Area</span>
+          
+            <button type="button" class="chip" data-group="Area" data-value="North Beach">North Beach</button>
+          
+            <button type="button" class="chip" data-group="Area" data-value="South Beach">South Beach</button>
+          
+        
+          <span class="fg-label">Type</span>
+          
+            <button type="button" class="chip" data-group="Type" data-value="Forest">Forest</button>
+          
+        
+          <span class="fg-label">Equipment</span>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="1 Tent">1 Tent</button>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="2 Tents">2 Tents</button>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="Van/Camper">Van/Camper</button>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="RV up to 20&#39;">RV up to 20&#39;</button>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="3 Tents">3 Tents</button>
+          
+            <button type="button" class="chip" data-group="Equipment" data-value="RV up to 32&#39;">RV up to 32&#39;</button>
+          
+        
+          <span class="fg-label">Services</span>
+          
+            <button type="button" class="chip" data-group="Services" data-value="Fire Pit">Fire Pit</button>
+          
+            <button type="button" class="chip" data-group="Services" data-value="Power">Power</button>
+          
+            <button type="button" class="chip" data-group="Services" data-value="Water">Water</button>
+          
+            <button type="button" class="chip" data-group="Services" data-value="Walk-in">Walk-in</button>
+          
+        
+          <span class="fg-label">Surface</span>
+          
+            <button type="button" class="chip" data-group="Surface" data-value="Gravel">Gravel</button>
+          
+            <button type="button" class="chip" data-group="Surface" data-value="Soil">Soil</button>
+          
+            <button type="button" class="chip" data-group="Surface" data-value="Sand">Sand</button>
+          
+        
+          <span class="fg-label">Light</span>
+          
+            <button type="button" class="chip" data-group="Light" data-value="Shaded">Shaded</button>
+          
+            <button type="button" class="chip" data-group="Light" data-value="Partly Covered">Partly Covered</button>
+          
+            <button type="button" class="chip" data-group="Light" data-value="Full Sun">Full Sun</button>
+          
+        
+          <span class="fg-label">Privacy</span>
+          
+            <button type="button" class="chip" data-group="Privacy" data-value="Moderate">Moderate</button>
+          
+            <button type="button" class="chip" data-group="Privacy" data-value="Exposed">Exposed</button>
+          
+            <button type="button" class="chip" data-group="Privacy" data-value="Private">Private</button>
+          
+        
+          <span class="fg-label">Slope</span>
+          
+            <button type="button" class="chip" data-group="Slope" data-value="Moderate">Moderate</button>
+          
+            <button type="button" class="chip" data-group="Slope" data-value="Flat">Flat</button>
+          
+        
+          <span class="fg-label">Capacity</span>
+          
+            <button type="button" class="chip" data-group="Capacity" data-value="2">2</button>
+          
+        
+        <button type="button" class="clear" hidden>clear</button>
+      </div>
+    
+    
+      
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="cg">CAMPGROUND/SITE</th>
+            
+              <th class="month-start ">
+                <span class="month">Jun</span>
+                19
+              </th>
+            
+              <th class="weekend">
+                
+                20
+              </th>
+            
+              <th class="weekend">
+                
+                21
+              </th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="summary" data-target="cg-3-chunk-1">
+            <td class="cg"><span class="caret">▶</span> Pacheedaht Campground</td>
+            <td colspan="3" style="text-align:left;">
+              
+                <span class="site-count">31 sites available</span>
+                
+              
+            </td>
+          </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="33" data-tags="Area:North Beach|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Services:Fire Pit|Surface:Gravel|Light:Shaded|Privacy:Moderate|Slope:Moderate">
+              <td class="cg">Forest North 24</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=33&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=33&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=33&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="34" data-tags="Area:North Beach|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Surface:Gravel|Light:Shaded|Privacy:Moderate|Slope:Moderate|Services:Power">
+              <td class="cg">Forest North 25</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=34&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=34&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=34&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="138" data-tags="Area:North Beach|Type:Forest|Equipment:1 Tent|Equipment:RV up to 20&#39;">
+              <td class="cg">Forest North 29a</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=138&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=138&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=138&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="137" data-tags="Area:North Beach">
+              <td class="cg">Forest North 29b</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=137&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=137&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=137&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="4" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Surface:Gravel|Light:Shaded|Privacy:Exposed">
+              <td class="cg">Forest North 3</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=4&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=4&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=4&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="40" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Surface:Gravel|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest North 31b</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=40&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=40&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=40&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="5" data-tags="Area:North Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Privacy:Exposed|Services:Power|Services:Water">
+              <td class="cg">Forest North 4</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=5&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=5&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=5&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="72" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Services:Fire Pit|Surface:Gravel|Light:Partly Covered|Privacy:Private">
+              <td class="cg">Forest North 43</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=72&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=72&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=72&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="74" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Surface:Gravel|Light:Partly Covered|Privacy:Private">
+              <td class="cg">Forest North 45</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=74&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=74&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=74&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="6" data-tags="Area:North Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Services:Power|Services:Water">
+              <td class="cg">Forest North 5</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=6&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=6&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=6&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="85" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Services:Fire Pit|Surface:Gravel|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest North 56</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=85&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=85&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=85&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="86" data-tags="Area:North Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Surface:Gravel|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest North 57</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=86&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=86&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=86&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="87" data-tags="Area:North Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest North 59</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=87&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=87&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=87&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="66" data-tags="Area:North Beach|Surface:Soil|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Slope:Moderate|Privacy:Private">
+              <td class="cg">Forest North 61</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=66&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=66&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=66&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="67" data-tags="Area:North Beach|Surface:Soil|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Slope:Moderate|Privacy:Private">
+              <td class="cg">Forest North 62</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=67&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=67&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=67&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="69" data-tags="Area:North Beach|Surface:Soil|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Slope:Moderate|Privacy:Private">
+              <td class="cg">Forest North 64</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=69&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=69&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=69&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="71" data-tags="Area:North Beach|Surface:Soil|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Slope:Moderate|Privacy:Private">
+              <td class="cg">Forest North 66</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=71&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=71&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=71&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="44" data-tags="Area:North Beach|Surface:Soil|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Light:Shaded|Privacy:Moderate|Slope:Moderate">
+              <td class="cg">Forest North 67</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=44&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=44&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=44&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="98" data-tags="Area:South Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Light:Full Sun|Privacy:Exposed">
+              <td class="cg">Forest South 110</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=98&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=98&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=98&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="99" data-tags="Area:South Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Light:Full Sun|Privacy:Exposed">
+              <td class="cg">Forest South 111</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=99&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=99&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=99&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="100" data-tags="Area:South Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Light:Full Sun|Privacy:Exposed">
+              <td class="cg">Forest South 112</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=100&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=100&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=100&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="101" data-tags="Area:South Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest South 113</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=101&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=101&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=101&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="102" data-tags="Area:South Beach|Surface:Soil|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Light:Shaded|Privacy:Moderate">
+              <td class="cg">Forest South 114</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=102&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=102&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=102&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="103" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Surface:Gravel|Light:Shaded|Privacy:Moderate">
+              <td class="cg">Forest South 115</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=103&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=103&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=103&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="104" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Surface:Gravel|Light:Shaded|Privacy:Moderate">
+              <td class="cg">Forest South 116</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=104&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=104&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=104&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="105" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Surface:Gravel|Light:Shaded|Privacy:Moderate">
+              <td class="cg">Forest South 117</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=105&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=105&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=105&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="106" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Equipment:Van/Camper|Equipment:RV up to 20&#39;|Equipment:RV up to 32&#39;|Surface:Gravel|Light:Shaded|Privacy:Private">
+              <td class="cg">Forest South 118</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=106&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=106&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=106&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="108" data-tags="Area:South Beach|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Services:Walk-in|Surface:Gravel|Light:Shaded|Slope:Moderate|Privacy:Private">
+              <td class="cg">Forest South 120</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=108&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=108&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=108&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="92" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Services:Walk-in|Surface:Sand|Light:Partly Covered|Privacy:Moderate">
+              <td class="cg">River South 104</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=92&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=92&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=92&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="94" data-tags="Area:South Beach|Slope:Flat|Type:Forest|Equipment:1 Tent|Equipment:2 Tents|Equipment:3 Tents|Services:Walk-in|Surface:Sand|Light:Partly Covered|Privacy:Moderate">
+              <td class="cg">River South 106</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=94&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=94&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=94&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-3-chunk-1" data-cg="cg-3" data-site-id="143" data-tags="Area:North Beach|Capacity:2|Equipment:1 Tent">
+              <td class="cg">West Coast Trail Group Site</td>
+              
+                
+                <td class="month-start avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=143&amp;start_date=2026-06-19&amp;end_date=2026-06-20" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=143&amp;start_date=2026-06-20&amp;end_date=2026-06-21" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://pacheedaht.checkfront.com/reserve/?item_id=143&amp;start_date=2026-06-21&amp;end_date=2026-06-22" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+  </div>
+
+  
+  <div class="cg-block fav-cg">
+  
+    
+    
+      
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="cg">CAMPGROUND/SITE</th>
+            
+              <th class="month-start ">
+                <span class="month">Jun</span>
+                19
+              </th>
+            
+              <th class="weekend">
+                
+                20
+              </th>
+            
+              <th class="weekend">
+                
+                21
+              </th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="summary" data-target="cg-4-chunk-1">
+            <td class="cg"><span class="caret">▶</span> Pacheena</td>
+            <td colspan="3" style="text-align:left;">
+              
+                <span class="site-count">3 sites available</span>
+                
+              
+            </td>
+          </tr>
+          
+            <tr class="site" data-group="cg-4-chunk-1" data-cg="cg-4" data-site-id="28180" data-tags="">
+              <td class="cg">Beach Side</td>
+              
+                
+                <td class="month-start ">
+                  
+                </td>
+              
+                
+                <td class="weekend ">
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.campspot.com/book/pachenabaycampground/search/2026-06-21/2026-06-22/guests0,2,0/list" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-4-chunk-1" data-cg="cg-4" data-site-id="42803" data-tags="">
+              <td class="cg">Forest 2</td>
+              
+                
+                <td class="month-start ">
+                  
+                </td>
+              
+                
+                <td class="weekend ">
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.campspot.com/book/pachenabaycampground/search/2026-06-21/2026-06-22/guests0,2,0/list" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+            <tr class="site" data-group="cg-4-chunk-1" data-cg="cg-4" data-site-id="28181" data-tags="">
+              <td class="cg">Forest Side</td>
+              
+                
+                <td class="month-start ">
+                  
+                </td>
+              
+                
+                <td class="weekend ">
+                  
+                </td>
+              
+                
+                <td class="weekend avail">
+                  
+                    
+                      <a href="https://www.campspot.com/book/pachenabaycampground/search/2026-06-21/2026-06-22/guests0,2,0/list" target="_blank" rel="noopener">✓</a>
+                    
+                  
+                </td>
+              
+            </tr>
+          
+        </tbody>
+      </table>
+    
+  
+  </div>
+
+
+<script>
+  document.querySelectorAll('tr.summary[data-target]').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var group = row.getAttribute('data-target');
+      var sites = document.querySelectorAll('tr.site[data-group="' + group + '"]');
+      var willOpen = sites.length > 0 && !sites[0].classList.contains('open');
+      sites.forEach(function (s) {
+        s.classList.toggle('open', willOpen);
+      });
+      document.querySelectorAll('tr.summary[data-target="' + group + '"] .caret').forEach(function (c) {
+        c.textContent = willOpen ? '▼' : '▶';
+      });
+    });
+  });
+
+  // Recompute "N sites available" for one campground based on which rows
+  // would actually display: not chip-filtered AND not favs-only-hidden.
+  // Counts distinct data-site-id values because each site is repeated
+  // once per monthly chunk in the table.
+  function recountCampground(block) {
+    var countEl = block.querySelector('.site-count');
+    if (!countEl) return;
+    var favsOnly = document.body.classList.contains('favs-only');
+    var hasFavs = block.classList.contains('has-favs');
+    var seen = new Set();
+    block.querySelectorAll('tr.site').forEach(function (row) {
+      if (row.classList.contains('filtered-out')) return;
+      if (favsOnly && hasFavs && !row.classList.contains('fav')) return;
+      var id = row.getAttribute('data-site-id');
+      if (id) seen.add(id);
+    });
+    var n = seen.size;
+    countEl.textContent = n + ' site' + (n === 1 ? '' : 's') + ' available';
+  }
+
+  var favsToggle = document.getElementById('favs-only-toggle');
+  if (favsToggle) {
+    favsToggle.addEventListener('change', function (e) {
+      document.body.classList.toggle('favs-only', e.target.checked);
+      document.querySelectorAll('.cg-block').forEach(recountCampground);
+    });
+  }
+
+  var favCgToggle = document.getElementById('fav-cg-only-toggle');
+  if (favCgToggle) {
+    favCgToggle.addEventListener('change', function (e) {
+      document.body.classList.toggle('fav-cg-only', e.target.checked);
+    });
+  }
+
+  var copyBtn = document.getElementById('copy-share-btn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async function () {
+      var url = copyBtn.getAttribute('data-url');
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch (e) {
+        // Fallback for older browsers / file:// origins where clipboard API is gated.
+        var ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+      }
+      copyBtn.classList.add('copied');
+      copyBtn.title = 'Copied!';
+      setTimeout(function () {
+        copyBtn.classList.remove('copied');
+        copyBtn.title = 'Copy URL to clipboard';
+      }, 1500);
+    });
+  }
+
+  // Per-campground chip filters.
+  // State: { cgId: { group: Set(values) } }. A group with an empty set
+  // (or absent) means "no constraint in this group" (show all).
+  // Match rule: AND across groups, OR within a group. A site is shown iff
+  // every group with active chips contains at least one tag value the
+  // site carries. Composes cleanly with the favourites-only CSS rule
+  // (both use display:none !important, so any hidden rule wins).
+  document.querySelectorAll('.filters').forEach(function (panel) {
+    var cgId = panel.getAttribute('data-cg');
+    var active = {};  // group -> Set of values
+    var rows = document.querySelectorAll('tr.site[data-cg="' + cgId + '"]');
+    var clearBtn = panel.querySelector('.clear');
+
+    function rowTagSet(row) {
+      var raw = row.getAttribute('data-tags') || '';
+      if (row._tagSet) return row._tagSet;
+      var s = new Set(raw ? raw.split('|') : []);
+      row._tagSet = s;
+      return s;
+    }
+
+    function applyFilters() {
+      var groups = Object.keys(active).filter(function (g) { return active[g].size > 0; });
+      rows.forEach(function (row) {
+        var tags = rowTagSet(row);
+        var ok = groups.every(function (g) {
+          var values = active[g];
+          for (var v of values) {
+            if (tags.has(g + ':' + v)) return true;
+          }
+          return false;
+        });
+        row.classList.toggle('filtered-out', !ok);
+      });
+      if (clearBtn) clearBtn.hidden = groups.length === 0;
+      recountCampground(panel.closest('.cg-block'));
+    }
+
+    panel.querySelectorAll('.chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var g = chip.getAttribute('data-group');
+        var v = chip.getAttribute('data-value');
+        if (!active[g]) active[g] = new Set();
+        if (active[g].has(v)) {
+          active[g].delete(v);
+          chip.classList.remove('active');
+        } else {
+          active[g].add(v);
+          chip.classList.add('active');
+        }
+        applyFilters();
+      });
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        active = {};
+        panel.querySelectorAll('.chip.active').forEach(function (c) {
+          c.classList.remove('active');
+        });
+        applyFilters();
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
